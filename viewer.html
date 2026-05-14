@@ -170,9 +170,9 @@
         <button id="nextBtn" onclick="nextPage()" disabled>下一页</button>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
         let pdfDoc = null;
         let currentPage = 1;
@@ -193,7 +193,8 @@
             showError('未指定文件。请从资料列表中选择一个文件。');
         } else {
             docTitle.textContent = decodeURIComponent(fileName).replace('.pdf', '');
-            loadPDF('pdfs/' + fileName);
+            // 通过 jsdelivr CDN 加载 PDF（国内访问快）
+            loadPDF('https://cdn.jsdelivr.net/gh/imagnation-hub/company-docs@main/pdfs/' + fileName);
         }
 
         async function loadPDF(url) {
