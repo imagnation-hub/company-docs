@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>楚邦上易 · 企业资料中心</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* 顶部 */
+        .header {
+            background: #fff;
+            padding: 28px 16px 20px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .header img {
+            height: 48px;
+            margin-bottom: 12px;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a1a1a;
+            letter-spacing: 1px;
+        }
+        .header p {
+            font-size: 13px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        /* 文件列表 */
+        .file-list {
+            padding: 16px 0 80px;
+        }
+        .file-card {
+            background: #fff;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+            transition: transform 0.15s;
+        }
+        .file-card:active {
+            transform: scale(0.98);
+        }
+
+        .file-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            background: #e74c3c;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .file-info .name {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1a1a1a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-info .size {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 2px;
+        }
+
+        .file-arrow {
+            color: #ccc;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        /* 二维码区域 */
+        .qrcode-section {
+            background: #fff;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .qrcode-section h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 12px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .qrcode-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+        }
+        .qrcode-item {
+            text-align: center;
+            width: 100px;
+        }
+        .qrcode-item canvas {
+            width: 100px;
+            height: 100px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+        }
+        .qrcode-item .label {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+            line-height: 1.3;
+            word-break: break-all;
+        }
+
+        /* 底部 */
+        .footer {
+            text-align: center;
+            padding: 24px 16px 40px;
+            color: #bbb;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        /* 文件链接 */
+        a.file-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="img/logo.png" alt="楚邦上易" onerror="this.style.display='none'">
+        <h1>楚邦上易 企业资料中心</h1>
+        <p>扫码在线浏览，实时更新</p>
+    </div>
+
+    <div class="container">
+        <div class="file-list" id="fileList"></div>
+
+        <div class="qrcode-section">
+            <h3>📱 单个文件二维码（长按保存发给客户）</h3>
+            <div class="qrcode-row" id="qrcodeRow"></div>
+        </div>
+
+        <div class="footer">
+            楚邦上易装饰<br>
+            扫一扫，了解我们
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // ============================================
+        // 文件列表配置 —— 增删改文件在这里改就行
+        // ============================================
+        const files = [
+            { name: '楚邦上易集团介绍（客户通用版）', file: 'company-intro.pdf', size: '21.4 MB' },
+            { name: '楚邦上易集团介绍（客户详细版）', file: 'company-intro-detail.pdf', size: '36.7 MB' },
+            { name: '26年服务手册',               file: 'service-manual.pdf', size: '10.4 MB' },
+            { name: '26工艺手册',                 file: 'craft-manual.pdf', size: '9.4 MB' },
+            { name: '企业文化讲解',               file: 'corporate-culture.pdf', size: '3.3 MB' },
+        ];
+
+        const BASE = '';  // 如果部署在子目录，改成 '/子目录名'
+
+        // ========== 渲染文件列表 ==========
+        const listEl = document.getElementById('fileList');
+        files.forEach((f, i) => {
+            const url = BASE + '/viewer.html?file=' + encodeURIComponent(f.file);
+            const a = document.createElement('a');
+            a.className = 'file-link';
+            a.href = url;
+            a.innerHTML = `
+                <div class="file-card">
+                    <div class="file-icon">PDF</div>
+                    <div class="file-info">
+                        <div class="name">${f.name}</div>
+                        <div class="size">${f.size}</div>
+                    </div>
+                    <div class="file-arrow">›</div>
+                </div>
+            `;
+            listEl.appendChild(a);
+        });
+
+        // ========== 生成子二维码 ==========
+        const qrRow = document.getElementById('qrcodeRow');
+        files.forEach(f => {
+            const url = window.location.origin + window.location.pathname.replace(/[^/]*$/, '') + 'viewer.html?file=' + encodeURIComponent(f.file);
+            const div = document.createElement('div');
+            div.className = 'qrcode-item';
+            const canvasId = 'qr_' + f.file.replace(/[^a-zA-Z0-9]/g, '_');
+            div.innerHTML = `<div id="${canvasId}"></div><div class="label">${f.name}</div>`;
+            qrRow.appendChild(div);
+
+            new QRCode(document.getElementById(canvasId), {
+                text: url,
+                width: 100,
+                height: 100,
+                colorDark: '#1a1a1a',
+                colorLight: '#ffffff',
+            });
+        });
+    </script>
+
+</body>
+</html>
