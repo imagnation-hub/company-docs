@@ -20,7 +20,6 @@
             -webkit-user-select: none;
         }
 
-        /* 顶部工具栏 */
         .toolbar {
             background: #fff;
             padding: 8px 12px;
@@ -53,15 +52,10 @@
             white-space: nowrap;
             flex-shrink: 0;
         }
-        .toolbar button:active {
-            background: #ddd;
-        }
-        .toolbar button:disabled {
-            opacity: 0.35;
-        }
+        .toolbar button:active { background: #ddd; }
+        .toolbar button:disabled { opacity: 0.35; }
 
-        /* PDF 画布区域 */
-        .viewer {
+        .viewer-wrap {
             flex: 1;
             overflow: auto;
             -webkit-overflow-scrolling: touch;
@@ -70,13 +64,12 @@
             background: #e8e8e8;
             padding: 8px;
         }
-        .viewer canvas {
+        .viewer-wrap canvas {
             box-shadow: 0 2px 12px rgba(0,0,0,0.15);
             max-width: 100%;
             height: auto !important;
         }
 
-        /* 底部导航 */
         .bottombar {
             background: #fff;
             padding: 8px 12px;
@@ -103,23 +96,23 @@
             font-size: 14px;
             cursor: pointer;
         }
-        .bottombar button:active {
-            opacity: 0.75;
-        }
-        .bottombar button:disabled {
-            background: #ccc;
-        }
+        .bottombar button:active { opacity: 0.75; }
+        .bottombar button:disabled { background: #ccc; }
 
-        /* 加载 / 错误状态 */
-        .status {
+        .status-overlay {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
             z-index: 100;
+            background: rgba(255,255,255,0.95);
+            padding: 32px 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            min-width: 260px;
         }
-        .status .spinner {
+        .spinner {
             width: 36px;
             height: 36px;
             border: 3px solid #ddd;
@@ -129,38 +122,53 @@
             margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .status .msg {
+        .status-overlay .msg {
             font-size: 14px;
             color: #888;
+            line-height: 1.6;
         }
-        .status .error-msg {
+        .status-overlay .hint {
+            font-size: 12px;
+            color: #bbb;
+            margin-top: 4px;
+        }
+        .status-overlay .error-msg {
             color: #e74c3c;
             font-size: 14px;
             margin-bottom: 12px;
+            line-height: 1.6;
         }
-        .status .back-btn {
-            background: #1a1a1a;
-            color: #fff;
+        .status-overlay button {
             border: none;
             border-radius: 20px;
             padding: 10px 28px;
             font-size: 14px;
             cursor: pointer;
+            margin: 6px;
+        }
+        .btn-primary {
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
         }
     </style>
 </head>
 <body>
 
     <div class="toolbar">
-        <button onclick="history.back()" aria-label="返回">← 返回</button>
+        <button onclick="history.back()">← 返回</button>
         <span class="title" id="docTitle">加载中...</span>
-        <button onclick="location.reload()" aria-label="刷新">🔄</button>
+        <button onclick="location.reload()">刷新</button>
     </div>
 
-    <div class="viewer" id="viewer">
-        <div class="status" id="status">
+    <div class="viewer-wrap" id="viewerWrap">
+        <div class="status-overlay" id="status">
             <div class="spinner"></div>
             <div class="msg">正在加载文档...</div>
+            <div class="hint" id="hintText"></div>
         </div>
     </div>
 
@@ -170,93 +178,138 @@
         <button id="nextBtn" onclick="nextPage()" disabled>下一页</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <!-- 尝试多个 PDF.js CDN 源 -->
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+        var PDFJS_CDNS = [
+            'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+            'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
+        ];
+        var WORKER_CDNS = [
+            'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+            'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+        ];
+    </script>
+    <script>
+        // 动态加载 PDF.js，支持 CDN 容错
+        (function loadScript(urls, callback, idx) {
+            idx = idx || 0;
+            if (idx >= urls.length) {
+                document.getElementById('status').innerHTML =
+                    '<div class="error-msg">网络连接失败<br>请检查网络后刷新重试</div>' +
+                    '<button class="btn-primary" onclick="location.reload()">刷新页面</button>';
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = urls[idx];
+            s.onload = function() {
+                if (callback) callback(idx);
+            };
+            s.onerror = function() {
+                loadScript(urls, callback, idx + 1);
+            };
+            document.head.appendChild(s);
+        })(PDFJS_CDNS, function(okIdx) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_CDNS[okIdx];
+            initApp();
+        });
+    </script>
+    <script>
+        var pdfDoc = null;
+        var currentPage = 1;
+        var totalPages = 0;
+        var pdfFileName = '';
 
-        let pdfDoc = null;
-        let currentPage = 1;
-        let totalPages = 0;
+        var viewerWrap = document.getElementById('viewerWrap');
+        var status = document.getElementById('status');
+        var docTitle = document.getElementById('docTitle');
+        var pageInfo = document.getElementById('pageInfo');
+        var prevBtn = document.getElementById('prevBtn');
+        var nextBtn = document.getElementById('nextBtn');
+        var hintText = document.getElementById('hintText');
 
-        const viewer = document.getElementById('viewer');
-        const status = document.getElementById('status');
-        const docTitle = document.getElementById('docTitle');
-        const pageInfo = document.getElementById('pageInfo');
-        const prevBtn = document.getElementById('prevBtn');
-        const nextBtn = document.getElementById('nextBtn');
+        function initApp() {
+            var params = new URLSearchParams(window.location.search);
+            var fileName = params.get('file');
 
-        // 获取文件名参数
-        const params = new URLSearchParams(window.location.search);
-        const fileName = params.get('file');
+            if (!fileName) {
+                showError('未指定文件。<br>请从资料列表中选择。');
+                return;
+            }
 
-        if (!fileName) {
-            showError('未指定文件。请从资料列表中选择一个文件。');
-        } else {
+            pdfFileName = fileName;
             docTitle.textContent = decodeURIComponent(fileName).replace('.pdf', '');
-            // 通过 jsdelivr CDN 加载 PDF（国内访问快）
-            loadPDF('https://cdn.jsdelivr.net/gh/imagnation-hub/company-docs@main/pdfs/' + fileName);
+
+            // 直接从 GitHub Pages 加载 PDF
+            var pdfUrl = 'pdfs/' + fileName;
+            loadPDF(pdfUrl);
         }
 
-        async function loadPDF(url) {
-            try {
-                pdfDoc = await pdfjsLib.getDocument(url).promise;
-                totalPages = pdfDoc.numPages;
-                pageInfo.textContent = `1 / ${totalPages}`;
+        function loadPDF(url) {
+            // 大文件提示
+            hintText.textContent = '文件较大，请耐心等待...';
+
+            pdfjsLib.getDocument({
+                url: url,
+                cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+                cMapPacked: true,
+            }).promise.then(function(doc) {
+                pdfDoc = doc;
+                totalPages = doc.numPages;
+                pageInfo.textContent = '1 / ' + totalPages;
                 prevBtn.disabled = true;
                 nextBtn.disabled = totalPages <= 1;
                 status.style.display = 'none';
                 renderPage(1);
-            } catch (err) {
+            }).catch(function(err) {
                 console.error(err);
-                showError('文档加载失败，请稍后重试。');
-            }
+                var msg = '文档加载失败';
+                if (err && err.message) {
+                    msg += '<br><small>' + err.message + '</small>';
+                }
+                msg += '<br><small>文件名: ' + pdfFileName + '</small>';
+                showError(msg);
+            });
         }
 
         function renderPage(num) {
-            // 移除旧 canvas
-            const oldCanvas = viewer.querySelector('canvas');
+            var oldCanvas = viewerWrap.querySelector('canvas');
             if (oldCanvas) oldCanvas.remove();
 
-            // 显示加载
-            const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'status';
-            loadingDiv.innerHTML = '<div class="spinner"></div><div class="msg">加载中...</div>';
+            var loadingDiv = document.createElement('div');
+            loadingDiv.className = 'status-overlay';
+            loadingDiv.innerHTML = '<div class="spinner"></div><div class="msg">渲染中...</div>';
             loadingDiv.id = 'loadingIndicator';
-            viewer.appendChild(loadingDiv);
+            viewerWrap.appendChild(loadingDiv);
 
-            pdfDoc.getPage(num).then(page => {
-                // 移除加载指示器
-                const indicator = document.getElementById('loadingIndicator');
+            pdfDoc.getPage(num).then(function(page) {
+                var indicator = document.getElementById('loadingIndicator');
                 if (indicator) indicator.remove();
 
-                const viewport = page.getViewport({ scale: 1 });
-                const containerWidth = viewer.clientWidth - 16;
+                var viewport = page.getViewport({ scale: 1 });
+                var containerWidth = viewerWrap.clientWidth - 16;
+                var scale = containerWidth / viewport.width;
+                var scaledViewport = page.getViewport({ scale: scale });
 
-                // 让 PDF 宽度撑满容器
-                const scale = containerWidth / viewport.width;
-                const scaledViewport = page.getViewport({ scale });
-
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
+                var canvas = document.createElement('canvas');
+                var ctx = canvas.getContext('2d');
                 canvas.height = scaledViewport.height;
                 canvas.width = scaledViewport.width;
-
-                viewer.appendChild(canvas);
+                viewerWrap.appendChild(canvas);
 
                 page.render({
                     canvasContext: ctx,
                     viewport: scaledViewport,
-                }).promise.then(() => {
+                }).promise.then(function() {
                     currentPage = num;
-                    pageInfo.textContent = `${num} / ${totalPages}`;
+                    pageInfo.textContent = num + ' / ' + totalPages;
                     prevBtn.disabled = num <= 1;
                     nextBtn.disabled = num >= totalPages;
-                    viewer.scrollTop = 0;
+                    viewerWrap.scrollTop = 0;
                 });
-            }).catch(() => {
-                const indicator = document.getElementById('loadingIndicator');
+            }).catch(function() {
+                var indicator = document.getElementById('loadingIndicator');
                 if (indicator) indicator.remove();
-                showError('页面加载失败');
+                showError('页面渲染失败，请刷新重试');
             });
         }
 
@@ -268,15 +321,14 @@
         }
 
         function showError(msg) {
-            status.innerHTML = `
-                <div class="error-msg">${msg}</div>
-                <button class="back-btn" onclick="history.back()">← 返回列表</button>
-            `;
+            status.innerHTML =
+                '<div class="error-msg">' + msg + '</div>' +
+                '<button class="btn-primary" onclick="location.reload()">刷新重试</button>' +
+                '<button class="btn-secondary" onclick="history.back()">返回列表</button>';
             docTitle.textContent = '出错了';
         }
 
-        // 键盘翻页（桌面端）
-        document.addEventListener('keydown', e => {
+        document.addEventListener('keydown', function(e) {
             if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevPage();
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextPage();
         });
