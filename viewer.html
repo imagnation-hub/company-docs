@@ -178,40 +178,10 @@
         <button id="nextBtn" onclick="nextPage()" disabled>下一页</button>
     </div>
 
-    <!-- 尝试多个 PDF.js CDN 源 -->
+    <script src="js/pdf.min.js"></script>
     <script>
-        var PDFJS_CDNS = [
-            'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
-            'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
-        ];
-        var WORKER_CDNS = [
-            'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
-            'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
-        ];
-    </script>
-    <script>
-        // 动态加载 PDF.js，支持 CDN 容错
-        (function loadScript(urls, callback, idx) {
-            idx = idx || 0;
-            if (idx >= urls.length) {
-                document.getElementById('status').innerHTML =
-                    '<div class="error-msg">网络连接失败<br>请检查网络后刷新重试</div>' +
-                    '<button class="btn-primary" onclick="location.reload()">刷新页面</button>';
-                return;
-            }
-            var s = document.createElement('script');
-            s.src = urls[idx];
-            s.onload = function() {
-                if (callback) callback(idx);
-            };
-            s.onerror = function() {
-                loadScript(urls, callback, idx + 1);
-            };
-            document.head.appendChild(s);
-        })(PDFJS_CDNS, function(okIdx) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = WORKER_CDNS[okIdx];
-            initApp();
-        });
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/pdf.worker.min.js';
+        window.addEventListener('DOMContentLoaded', initApp);
     </script>
     <script>
         var pdfDoc = null;
@@ -248,8 +218,6 @@
 
             pdfjsLib.getDocument({
                 url: url,
-                cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-                cMapPacked: true,
             }).promise.then(function(doc) {
                 pdfDoc = doc;
                 totalPages = doc.numPages;
