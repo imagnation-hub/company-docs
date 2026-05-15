@@ -239,13 +239,13 @@
             pdfFileName = fileName;
             docTitle.textContent = decodeURIComponent(fileName).replace('.pdf', '');
 
-            // 直接从 GitHub Pages 加载 PDF
-            var pdfUrl = 'pdfs/' + fileName;
-            loadPDF(pdfUrl);
+            // 优先走 jsDelivr CDN（国内有节点），失败回退直连
+            var cdnUrl = 'https://cdn.jsdelivr.net/gh/imagnation-hub/company-docs@main/pdfs/' + fileName;
+            var directUrl = 'pdfs/' + fileName;
+            loadPDF(cdnUrl, directUrl);
         }
 
-        function loadPDF(url) {
-            // 大文件提示
+        function loadPDF(url, fallbackUrl) {
             hintText.textContent = '文件较大，请耐心等待...';
 
             pdfjsLib.getDocument({
@@ -262,12 +262,18 @@
                 renderPage(1);
             }).catch(function(err) {
                 console.error(err);
-                var msg = '文档加载失败';
-                if (err && err.message) {
-                    msg += '<br><small>' + err.message + '</small>';
+                if (fallbackUrl) {
+                    // CDN 加载失败，回退到直连
+                    hintText.textContent = 'CDN 超时，切换直连...';
+                    loadPDF(fallbackUrl, null);
+                } else {
+                    var msg = '文档加载失败';
+                    if (err && err.message) {
+                        msg += '<br><small>' + err.message + '</small>';
+                    }
+                    msg += '<br><small>文件名: ' + pdfFileName + '</small>';
+                    showError(msg);
                 }
-                msg += '<br><small>文件名: ' + pdfFileName + '</small>';
-                showError(msg);
             });
         }
 
