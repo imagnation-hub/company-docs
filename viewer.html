@@ -181,9 +181,7 @@
     <script src="js/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/pdf.worker.min.js';
-        window.addEventListener('DOMContentLoaded', initApp);
-    </script>
-    <script>
+
         var pdfDoc = null;
         var currentPage = 1;
         var totalPages = 0;
@@ -298,6 +296,8 @@
             if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevPage();
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextPage();
         });
+
+        initApp();
     </script>
 
 </body>
